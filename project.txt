@@ -1,0 +1,66 @@
+Enterprise Knowledge MCP Server – Project Definition
+
+Objective
+Build an Enterprise Knowledge MCP (Model Context Protocol) Server that enables AI assistants (such as ChatGPT, Claude Desktop, or other MCP-compatible clients) to securely access, search, and retrieve information from an organisation's knowledge sources.
+
+Instead of giving an AI direct access to multiple systems, the MCP server acts as a secure bridge, exposing enterprise knowledge through standardized MCP tools.
+
+Supported Data Sources
+The server should be able to connect to and index information from:
+
+PDF documents
+Microsoft Word (.docx)
+Microsoft Excel (.xlsx)
+Notion
+Google Drive
+The architecture should be modular so additional connectors can be added later.
+
+Expected Features
+Document Ingestion
+Import documents from supported sources
+Extract text and metadata
+Chunk documents for retrieval
+Generate embeddings
+Store searchable content in a vector database
+
+Semantic Search
+Search documents using natural language instead of exact keywords
+Return the most relevant document sections
+Support metadata-based filtering (department, author, tags, dates, etc.)
+
+Retrieval-Augmented Generation (RAG)
+Retrieve relevant document chunks
+Supply context to the LLM
+Generate accurate, context-aware answers
+
+End Goal
+Create a secure, scalable Enterprise Knowledge MCP Server that enables AI assistants to answer questions using an organisation's internal knowledge while providing accurate citations, semantic search, and enterprise-grade security.
+
+
+Instructions
+File storage - postgresql + pgvector(for embedings)
+MCP Server performs retrieval only. MCP server = Retrieval layer
+Build a separate connector for each data source.Periodic sync to detect new document arrivals.
+In environment file we will define whether we want to use reranker or not.
+Use task queue\background worker for ingestion:
+* Extract text
+* Extract metadata
+* Normalise context
+* Chunking
+* Embeddings
+* Store into database
+
+
+RAG Specifications:
+* framework - Python/langchain whichever best for tasks
+* parsed data - JSON
+* Parser:
+    * pdf - PyMuPDF
+    * Docx- python-docx
+    * Xlsx - openpyxl
+* chunk_size = 800
+* chunk_overlapping = 150
+* Initial retrieval Top_k = Top 20 
+* Re-ranking = 
+* Number of final chunks given for generation = 5 
+
