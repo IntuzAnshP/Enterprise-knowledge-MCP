@@ -3,7 +3,7 @@ from sqlalchemy import Column, String, DateTime, func, JSON, ForeignKey, Integer
 from sqlalchemy.dialects.postgresql import UUID
 from pgvector.sqlalchemy import Vector
 from app.database import Base
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, backref
 
 class DocumentChunk(Base):
     __tablename__ = "document_chunks"
@@ -19,4 +19,4 @@ class DocumentChunk(Base):
     
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     
-    document = relationship("Document", backref="chunks")
+    document = relationship("Document", backref=backref("chunks", cascade="all, delete", passive_deletes=True))

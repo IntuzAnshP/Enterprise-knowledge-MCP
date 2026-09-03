@@ -4,6 +4,7 @@ from typing import List, Optional, Union, Annotated, Literal
 class BaseElement(BaseModel):
     index: int
     section_path: List[str] = Field(default_factory=list)
+    page_number: Optional[int] = None
 
 class ParagraphElement(BaseElement):
     type: Literal["paragraph"] = "paragraph"

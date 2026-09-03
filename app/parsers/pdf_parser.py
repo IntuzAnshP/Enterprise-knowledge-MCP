@@ -4,7 +4,9 @@ from collections import Counter
 from app.parsers.base import BaseParser
 from app.schemas.source_item import SourceItem
 from app.schemas.extracted_document import ExtractedDocument, DocumentMetadata
-from app.schemas.document_elements import HeadingElement, ParagraphElement
+from app.schemas.document_elements import HeadingElement, ParagraphElement, ListItemElement
+
+BULLET_PATTERN = re.compile(r'^[\u2022\u2023\u25E6\u2043\u2219\-\*\u25ba\u25aa]|^\d+[\.)\s]')
 
 class PDFParser(BaseParser):
     def supports(self, content_type: str) -> bool:
@@ -83,9 +85,12 @@ class PDFParser(BaseParser):
                 
                 is_heading = False
                 heading_level = 1
+
+                first_line_of_block = block_text.split('\n')[0].strip()
+                is_bullet = bool(BULLET_PATTERN.match(first_line_of_block))
                 
                 # It's a heading if the max font size in the block is significantly larger than body text
-                if max_font_size >= most_common_size + 1.5:
+                if not is_bullet and max_font_size >= most_common_size + 1.5:
                     is_heading = True
                     # Estimate level based on size difference
                     size_diff = max_font_size - most_common_size
@@ -97,7 +102,7 @@ class PDFParser(BaseParser):
                         heading_level = 3
                         
                 # Alternative heading detection for same-size font (like "1. Introduction")
-                elif len(block_text) < 100:
+                elif not is_bullet and len(block_text) < 100:
                     lines = [line.strip() for line in block_text.splitlines() if line.strip()]
                     first_line = lines[0] if lines else ""
                     # Strict regex
@@ -110,17 +115,26 @@ class PDFParser(BaseParser):
                         heading_level = min(dot_count + 1, 4) if dot_count > 0 else 1
 
                 if is_heading:
-                    # Update hierarchy
+                    # Update hierarchy — always trim unconditionally to correct level
                     first_line = block_text.split("\n")[0][:100]
-                    if heading_level <= len(current_section_path):
-                        current_section_path = current_section_path[:heading_level - 1]
+                    current_section_path = current_section_path[:heading_level - 1]
                     current_section_path.append(first_line)
                     
                     elements.append(HeadingElement(
                         index=element_index,
                         text=block_text,
                         level=heading_level,
-                        section_path=list(current_section_path)
+                        section_path=list(current_section_path),
+                        page_number=page_num + 1
+                    ))
+                elif is_bullet:
+                    elements.append(ListItemElement(
+                        index=element_index,
+                        text=block_text,
+                        list_type="bullet",
+                        level=1,
+                        section_path=list(current_section_path),
+                        page_number=page_num + 1
                     ))
                 else:
                     elements.append(ParagraphElement(
@@ -128,13 +142,27 @@ class PDFParser(BaseParser):
                         text=block_text,
                         style="Normal",
                         heading_level=None,
-                        section_path=list(current_section_path)
+                        section_path=list(current_section_path),
+                        page_number=page_num + 1
                     ))
                 
                 element_index += 1
 
+        # Title fallback: PDF metadata → first H1 heading → filename
+        raw_title = (doc.metadata.get("title") or "").strip()
+        ANON_VALUES = {"", "(anonymous)", "untitled", "unknown"}
+        if raw_title.lower() not in ANON_VALUES:
+            resolved_title = raw_title
+        else:
+            first_h1 = next(
+                (e.text.split('\n')[0][:120] for e in elements
+                 if getattr(e, 'type', '') == 'heading' and getattr(e, 'level', 0) == 1),
+                None
+            )
+            resolved_title = first_h1 or source_item.original_filename
+
         doc_metadata = DocumentMetadata(
-            title=doc.metadata.get("title") or source_item.original_filename,
+            title=resolved_title,
             author=doc.metadata.get("author"),
             created_at=doc.metadata.get("creationDate"),
             modified_at=doc.metadata.get("modDate"),

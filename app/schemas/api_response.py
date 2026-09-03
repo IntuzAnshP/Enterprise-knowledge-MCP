@@ -5,6 +5,6 @@ T = TypeVar('T')
 
 class APIResponse(BaseModel, Generic[T]):
     status: str = "success"
-    data: Optional[T] = None
     message: Optional[str] = None
+    data: Optional[T] = None
     meta: Optional[dict[str, Any]] = None

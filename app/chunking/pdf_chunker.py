@@ -17,6 +17,8 @@ class PDFChunker(AbstractChunker):
         current_chunk_content = []
         current_token_count = 0
         current_section_context = None
+        current_heading_context = None
+        current_page_number = None
         chunk_index = 0
 
         def finalize_chunk(chunk_type="paragraph"):
@@ -33,7 +35,9 @@ class PDFChunker(AbstractChunker):
                 source_type=doc.source_type,
                 source_url=doc.source_url,
                 title=doc.title,
-                section_context=current_section_context
+                section_context=current_section_context,
+                heading_context=current_heading_context,
+                page_number=current_page_number
             )
 
             chunks.append(DocumentChunkSchema(
@@ -51,15 +55,25 @@ class PDFChunker(AbstractChunker):
                 continue
 
             tokens = self._approx_token_count(text)
+            
+            # Update current page number if available
+            if "page_number" in section.metadata and section.metadata["page_number"] is not None:
+                current_page_number = section.metadata["page_number"]
 
             # Heading boundary -> flush current chunk to keep sections clean
             if section.section_type == "heading":
                 finalize_chunk()
 
                 if "section_path" in section.metadata and section.metadata["section_path"]:
-                    current_section_context = " > ".join(section.metadata["section_path"])
+                    section_path = section.metadata["section_path"]
+                    current_section_context = " > ".join(section_path)
+                    if len(section_path) > 1:
+                        current_heading_context = section_path[-2]
+                    else:
+                        current_heading_context = None
                 else:
                     current_section_context = text
+                    current_heading_context = None
 
                 current_chunk_content.append(text)
                 current_token_count += tokens

@@ -43,7 +43,11 @@ async def upload_document(
         # 2. Run ingestion pipeline
         db_doc = pipeline.run(source_item, db)
         
+        # 3. Get chunk count
+        chunk_count = db.query(DocumentChunk).filter(DocumentChunk.document_id == db_doc.id).count()
+        
         return APIResponse(
+            message=f"successfully completed ingestion created {chunk_count} chunks and stored in vector db.",
             data=DocumentResponse(
                 id=str(db_doc.id),
                 title=db_doc.title,
@@ -69,6 +73,7 @@ def get_document_chunks(document_id: str, db: Session = Depends(get_db)):
     chunks = db.query(DocumentChunk).filter(DocumentChunk.document_id == document_id).order_by(DocumentChunk.chunk_index).all()
     
     return APIResponse(
+        message="Successfully retrieved document chunks",
         data=[
             ChunkResponse(
                 chunk_index=chunk.chunk_index,
@@ -83,6 +88,7 @@ def get_document_chunks(document_id: str, db: Session = Depends(get_db)):
 def list_documents(db: Session = Depends(get_db)):
     docs = db.query(Document).all()
     return APIResponse(
+        message="Successfully retrieved document list",
         data=[{
             "id": str(doc.id),
             "title": doc.title,
@@ -100,6 +106,7 @@ def get_document(document_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Document not found")
         
     return APIResponse(
+        message="Successfully retrieved document",
         data={
             "id": str(doc.id),
             "title": doc.title,
@@ -124,6 +131,7 @@ def get_parsed_text(document_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Document not found")
         
     return APIResponse(
+        message="Successfully retrieved parsed text",
         data=TextResponse(
             document_id=str(doc.id),
             text=doc.raw_text or ""
@@ -137,6 +145,7 @@ def get_normalized_text(document_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Document not found")
         
     return APIResponse(
+        message="Successfully retrieved normalized text",
         data=TextResponse(
             document_id=str(doc.id),
             text=doc.full_text or ""
