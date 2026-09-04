@@ -53,13 +53,43 @@ class DOCXParser(BaseParser):
                 
                 style_name = block.style.name if block.style else "Normal"
                 
-                # Check for Headings
+                # Heading detection variables
+                is_heading = False
+                level = 1
+                
                 if style_name.startswith("Heading"):
+                    is_heading = True
                     try:
                         level = int(style_name.replace("Heading", "").strip())
                     except ValueError:
                         level = 1
+                else:
+                    # Fallback heuristic for headings styled as 'Normal'
+                    has_num = block._p.pPr is not None and block._p.pPr.numPr is not None
+                    if not has_num and len(text) < 150:
+                        sizes = []
+                        bolds = []
+                        for run in block.runs:
+                            if run.text.strip():
+                                if run.font and run.font.size:
+                                    sizes.append(run.font.size.pt)
+                                bolds.append(run.bold)
                         
+                        max_size = max(sizes) if sizes else 12.0
+                        all_bold = all(bolds) if bolds else False
+                        
+                        if max_size >= 14.0 and all_bold:
+                            is_heading = True
+                            level = 1
+                        elif max_size >= 13.0 and all_bold:
+                            is_heading = True
+                            level = 2
+                        elif all_bold and len(bolds) == 1 and len(text) < 80:
+                            is_heading = True
+                            level = 3
+                
+                # Check for Headings
+                if is_heading:
                     # Update section path
                     section_path = section_path[:level - 1]
                     section_path.append(text)

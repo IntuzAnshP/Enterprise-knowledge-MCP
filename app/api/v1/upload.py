@@ -1,4 +1,4 @@
-from fastapi import APIRouter, UploadFile, File, Depends, HTTPException
+from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.connectors.local.upload_service import UploadService
@@ -84,9 +84,58 @@ def get_document_chunks(document_id: str, db: Session = Depends(get_db)):
         ]
     )
 
+from enum import Enum
+
+class SourceTypeEnum(str, Enum):
+    local = "local"
+    google_drive = "google_drive"
+    notion = "notion"
+
+class ContentTypeEnum(str, Enum):
+    pdf = "pdf"
+    docx = "docx"
+    xlsx = "xlsx"
+
+class SortByEnum(str, Enum):
+    created_at = "created_at"
+    title = "title"
+
+class OrderEnum(str, Enum):
+    asc = "asc"
+    desc = "desc"
+
 @router.get("/documents", response_model=APIResponse[List[Dict[str, Any]]])
-def list_documents(db: Session = Depends(get_db)):
-    docs = db.query(Document).all()
+def list_documents(
+    search: Optional[str] = None,
+    source_type: Optional[SourceTypeEnum] = None,
+    content_type: Optional[ContentTypeEnum] = None,
+    sort_by: SortByEnum = Query(SortByEnum.created_at, description="Field to sort by"),
+    order: OrderEnum = Query(OrderEnum.desc, description="Sort order"),
+    db: Session = Depends(get_db)
+):
+    query = db.query(Document)
+    
+    if search:
+        query = query.filter(Document.title.ilike(f"%{search}%"))
+        
+    if source_type:
+        query = query.filter(Document.source_type == source_type.value)
+        
+    if content_type:
+        query = query.filter(Document.content_type == content_type.value)
+        
+    if sort_by == SortByEnum.title:
+        order_col = Document.title
+    else:
+        order_col = Document.created_at
+        
+    if order == OrderEnum.asc:
+        query = query.order_by(order_col.asc())
+    else:
+        query = query.order_by(order_col.desc())
+        
+    docs = query.all()
+    
     return APIResponse(
         message="Successfully retrieved document list",
         data=[{

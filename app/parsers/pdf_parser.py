@@ -6,7 +6,14 @@ from app.schemas.source_item import SourceItem
 from app.schemas.extracted_document import ExtractedDocument, DocumentMetadata
 from app.schemas.document_elements import HeadingElement, ParagraphElement, ListItemElement
 
-BULLET_PATTERN = re.compile(r'^[\u2022\u2023\u25E6\u2043\u2219\-\*\u25ba\u25aa]|^\d+[\.)\s]')
+# Only match true bullets (symbols). Numbered patterns like "1." and "1.1"
+# are now handled by heading detection first to avoid false bullet matches.
+BULLET_PATTERN = re.compile(r'^[\u2022\u2023\u25E6\u2043\u2219\-\*\u25ba\u25aa]')
+
+# Matches: "1. Intro", "1.1 Background", "1.2.1 Detailed Scope", all-caps headings, "Chapter N", "SECTION N"
+STRICT_HEADING_REGEX = re.compile(
+    r'^(?:\d+(?:\.\d+)*\.?\s+[A-Za-z][^\n]*|Chapter\s+\d+|SECTION\s+\d+|[A-Z][A-Z\s]{3,})$'
+)
 
 class PDFParser(BaseParser):
     def supports(self, content_type: str) -> bool:
@@ -89,10 +96,19 @@ class PDFParser(BaseParser):
                 first_line_of_block = block_text.split('\n')[0].strip()
                 is_bullet = bool(BULLET_PATTERN.match(first_line_of_block))
                 
-                # It's a heading if the max font size in the block is significantly larger than body text
-                if not is_bullet and max_font_size >= most_common_size + 1.5:
+                # 1. Regex-based heading detection (Highest precision for structure)
+                if len(block_text) < 120 and STRICT_HEADING_REGEX.match(first_line_of_block):
                     is_heading = True
-                    # Estimate level based on size difference
+                    if first_line_of_block.startswith('Chapter') or first_line_of_block.startswith('SECTION') or first_line_of_block.isupper():
+                        heading_level = 1
+                    else:
+                        prefix = first_line_of_block.split()[0]
+                        num_parts = len([p for p in prefix.split('.') if p.isdigit()])
+                        heading_level = min(num_parts, 4) if num_parts > 0 else 1
+                
+                # 2. Size-based heading detection (Fallback for unnumbered headings)
+                elif not is_bullet and max_font_size >= most_common_size + 1.5:
+                    is_heading = True
                     size_diff = max_font_size - most_common_size
                     if size_diff > 8:
                         heading_level = 1
@@ -101,18 +117,11 @@ class PDFParser(BaseParser):
                     else:
                         heading_level = 3
                         
-                # Alternative heading detection for same-size font (like "1. Introduction")
-                elif not is_bullet and len(block_text) < 100:
-                    lines = [line.strip() for line in block_text.splitlines() if line.strip()]
-                    first_line = lines[0] if lines else ""
-                    # Strict regex
-                    strict_heading_regex = re.compile(
-                        r'^(?:(?:\d+\.){1,4}\s+[A-Z][a-zA-Z0-9\s]*|Chapter\s+\d+|SECTION\s+\d+)$'
-                    )
-                    if strict_heading_regex.match(first_line):
-                        is_heading = True
-                        dot_count = first_line.split()[0].count('.') if first_line else 0
-                        heading_level = min(dot_count + 1, 4) if dot_count > 0 else 1
+                # 3. Numbered List detection (only if not a heading)
+                if not is_heading and not is_bullet:
+                    numbered_list_pattern = re.compile(r'^\d+[\.)]\s+\S')
+                    if numbered_list_pattern.match(first_line_of_block):
+                        is_bullet = True
 
                 if is_heading:
                     # Update hierarchy — always trim unconditionally to correct level

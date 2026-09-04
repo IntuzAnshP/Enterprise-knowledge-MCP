@@ -62,6 +62,68 @@ def search_knowledge(
     finally:
         db.close()
 
+from typing import Optional, Any, Literal
+
+@mcp.tool()
+def list_documents(
+    search: Optional[str] = None,
+    source_type: Optional[Literal["local", "google_drive", "notion"]] = None,
+    content_type: Optional[Literal["pdf", "docx", "xlsx"]] = None,
+    sort_by: Literal["created_at", "title"] = "created_at",
+    order: Literal["asc", "desc"] = "desc"
+) -> str:
+    """
+    List all documents in the enterprise knowledge base.
+    
+    Args:
+        search: Optional string to search for in the document title.
+        source_type: Optional filter by source type.
+        content_type: Optional filter by content type.
+        sort_by: Field to sort by (created_at or title).
+        order: Sort order (asc or desc).
+    """
+    logger.info(f"Tool called: list_documents with source_type: {source_type}, content_type: {content_type}")
+    db = SessionLocal()
+    try:
+        query = db.query(Document)
+        
+        if search:
+            query = query.filter(Document.title.ilike(f"%{search}%"))
+            
+        if source_type:
+            query = query.filter(Document.source_type == source_type)
+            
+        if content_type:
+            query = query.filter(Document.content_type == content_type)
+            
+        if sort_by == "title":
+            order_col = Document.title
+        else:
+            order_col = Document.created_at
+            
+        if order.lower() == "asc":
+            query = query.order_by(order_col.asc())
+        else:
+            query = query.order_by(order_col.desc())
+            
+        docs = query.all()
+        
+        results = [{
+            "id": str(doc.id),
+            "title": doc.title,
+            "source_type": doc.source_type,
+            "content_type": doc.content_type,
+            "indexing_status": doc.indexing_status.value if doc.indexing_status else "pending",
+            "created_at": doc.created_at.isoformat() if doc.created_at else None
+        } for doc in docs]
+        
+        return json.dumps(results)
+    except Exception as e:
+        logger.error(f"Error in list_documents: {e}", exc_info=True)
+        return f"Error: {str(e)}"
+    finally:
+        db.close()
+
 @mcp.tool()
 def get_document(document_id: str) -> str:
     """

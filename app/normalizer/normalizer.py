@@ -64,8 +64,12 @@ class NormalizationService:
             title = extracted.source_item.original_filename
             
         if not source_updated_at:
-            mtime = os.path.getmtime(extracted.source_item.raw_path)
-            source_updated_at = datetime.fromtimestamp(mtime, tz=timezone.utc)
+            try:
+                mtime = os.path.getmtime(extracted.source_item.raw_path)
+                source_updated_at = datetime.fromtimestamp(mtime, tz=timezone.utc)
+            except (OSError, TypeError):
+                # File may have been cleaned up (e.g. temp downloads) — fall back to now
+                source_updated_at = datetime.now(timezone.utc)
             
         return NormalizedDocument(
             source_type=extracted.source_item.source_type,
