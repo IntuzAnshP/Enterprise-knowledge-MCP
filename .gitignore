@@ -7,3 +7,11 @@ uploads/
 .DS_Store
 *.log
 .vscode/
+
+# Google Drive API credentials
+credentials/
+
+# Test documents
+*.pdf
+*.docx
+*.odt
