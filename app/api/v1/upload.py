@@ -150,6 +150,7 @@ def get_document(document_id: str, db: Session = Depends(get_db)):
             "content_type": doc.content_type,
             "source_url": doc.source_url,
             "metadata": doc.metadata_,
+            "parsed_text": doc.raw_text or "",
             "indexing_status": doc.indexing_status.value if doc.indexing_status else "pending",
             "created_at": doc.created_at,
             "updated_at": doc.updated_at
@@ -160,19 +161,7 @@ class TextResponse(BaseModel):
     document_id: str
     text: str
 
-@router.get("/documents/{document_id}/parsed-text", response_model=APIResponse[TextResponse])
-def get_parsed_text(document_id: str, db: Session = Depends(get_db)):
-    doc = db.query(Document).filter(Document.id == document_id).first()
-    if not doc:
-        raise HTTPException(status_code=404, detail="Document not found")
-        
-    return APIResponse(
-        message="Successfully retrieved parsed text",
-        data=TextResponse(
-            document_id=str(doc.id),
-            text=doc.raw_text or ""
-        )
-    )
+
 
 @router.get("/documents/{document_id}/normalized-text", response_model=APIResponse[TextResponse])
 def get_normalized_text(document_id: str, db: Session = Depends(get_db)):

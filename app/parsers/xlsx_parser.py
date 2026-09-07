@@ -25,14 +25,8 @@ class XLSXParser(BaseParser):
                     rows_data.append(row_str)
                     full_text.append(row_str)
             
-            sheets_data.append({
-                "name": sheet_name,
-                "rows": rows_data
-            })
-            
         parser_metadata = {
-            "sheet_names": wb.sheetnames,
-            "sheets": sheets_data
+            "sheet_names": wb.sheetnames
         }
         
         return ExtractedDocument(
