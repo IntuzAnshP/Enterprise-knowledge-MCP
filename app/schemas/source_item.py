@@ -8,6 +8,7 @@ class SourceItem(BaseModel):
     source_id: str            # file path or generated UUID
     content_type: str         # 'pdf', 'docx', 'xlsx'
     raw_path: Path            # absolute path to stored file
+    source_url: Optional[str] = None # Original URL if from a cloud source
     original_filename: str
     file_size: int
     uploaded_at: datetime

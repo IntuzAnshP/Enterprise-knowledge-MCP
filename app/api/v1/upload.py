@@ -31,6 +31,9 @@ class ChunkResponse(BaseModel):
     content: str
     metadata: Dict[str, Any]
 
+from fastapi import BackgroundTasks
+from app.models.document import IndexingStatus
+
 @router.post("/upload", response_model=APIResponse[DocumentResponse])
 async def upload_document(
     file: UploadFile = File(...),
@@ -40,14 +43,15 @@ async def upload_document(
         # 1. Save file locally
         source_item = await upload_service.save_upload_file(file)
         
-        # 2. Run ingestion pipeline
-        db_doc = pipeline.run(source_item, db)
+        # 2. Run ingestion pipeline in a thread pool to avoid blocking the event loop
+        from starlette.concurrency import run_in_threadpool
+        db_doc = await run_in_threadpool(pipeline.run, source_item, db)
         
         # 3. Get chunk count
         chunk_count = db.query(DocumentChunk).filter(DocumentChunk.document_id == db_doc.id).count()
         
         return APIResponse(
-            message=f"successfully completed ingestion created {chunk_count} chunks and stored in vector db.",
+            message=f"Successfully completed ingestion. Created {chunk_count} chunks and stored in vector DB.",
             data=DocumentResponse(
                 id=str(db_doc.id),
                 title=db_doc.title,
@@ -64,25 +68,7 @@ async def upload_document(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/documents/{document_id}/chunks", response_model=APIResponse[List[ChunkResponse]])
-def get_document_chunks(document_id: str, db: Session = Depends(get_db)):
-    doc = db.query(Document).filter(Document.id == document_id).first()
-    if not doc:
-        raise HTTPException(status_code=404, detail="Document not found")
-        
-    chunks = db.query(DocumentChunk).filter(DocumentChunk.document_id == document_id).order_by(DocumentChunk.chunk_index).all()
-    
-    return APIResponse(
-        message="Successfully retrieved document chunks",
-        data=[
-            ChunkResponse(
-                chunk_index=chunk.chunk_index,
-                chunk_type=chunk.chunk_type,
-                content=chunk.content,
-                metadata=chunk.metadata_ or {}
-            ) for chunk in chunks
-        ]
-    )
+
 
 from enum import Enum
 
@@ -95,6 +81,7 @@ class ContentTypeEnum(str, Enum):
     pdf = "pdf"
     docx = "docx"
     xlsx = "xlsx"
+    notion = "notion"
 
 class SortByEnum(str, Enum):
     created_at = "created_at"
@@ -106,9 +93,9 @@ class OrderEnum(str, Enum):
 
 @router.get("/documents", response_model=APIResponse[List[Dict[str, Any]]])
 def list_documents(
-    search: Optional[str] = None,
-    source_type: Optional[SourceTypeEnum] = None,
-    content_type: Optional[ContentTypeEnum] = None,
+    search: Optional[str] = Query(None, description="Search query"),
+    source_type: Optional[SourceTypeEnum] = Query(None, description="Filter by source type"),
+    content_type: Optional[ContentTypeEnum] = Query(None, description="Filter by content type"),
     sort_by: SortByEnum = Query(SortByEnum.created_at, description="Field to sort by"),
     order: OrderEnum = Query(OrderEnum.desc, description="Sort order"),
     db: Session = Depends(get_db)
@@ -199,6 +186,26 @@ def get_normalized_text(document_id: str, db: Session = Depends(get_db)):
             document_id=str(doc.id),
             text=doc.full_text or ""
         )
+    )
+
+@router.get("/documents/{document_id}/chunks", response_model=APIResponse[List[ChunkResponse]])
+def get_document_chunks(document_id: str, db: Session = Depends(get_db)):
+    doc = db.query(Document).filter(Document.id == document_id).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+        
+    chunks = db.query(DocumentChunk).filter(DocumentChunk.document_id == document_id).order_by(DocumentChunk.chunk_index).all()
+    
+    return APIResponse(
+        message="Successfully retrieved document chunks",
+        data=[
+            ChunkResponse(
+                chunk_index=chunk.chunk_index,
+                chunk_type=chunk.chunk_type,
+                content=chunk.content,
+                metadata=chunk.metadata_ or {}
+            ) for chunk in chunks
+        ]
     )
 
 import os

@@ -4,7 +4,7 @@ from uuid import UUID
 
 class MetadataFilter(BaseModel):
     source_type: Optional[Literal["local", "notion", "google_drive"]] = None
-    content_type: Optional[Literal["pdf", "docx", "xlsx"]] = None
+    content_type: Optional[Literal["pdf", "docx", "xlsx", "notion"]] = None
     document_id: Optional[UUID] = None
 
 class ChunkCitation(BaseModel):

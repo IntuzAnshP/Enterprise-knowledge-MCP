@@ -84,7 +84,7 @@ class NormalizationService:
             raw_text=extracted.raw_text,
             full_text=full_text,
             content_hash=content_hash,
-            source_url=str(extracted.source_item.raw_path),
+            source_url=extracted.source_item.source_url or str(extracted.source_item.raw_path),
             source_updated_at=source_updated_at,
             metadata=final_metadata,
             structured_sections=structured_sections

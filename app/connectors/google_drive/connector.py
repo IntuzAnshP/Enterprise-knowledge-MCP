@@ -180,6 +180,7 @@ class GoogleDriveConnector:
             source_id=file_meta.source_id,              # "google_drive:<file_id>"
             content_type=file_meta.content_type,        # 'pdf' | 'docx' | 'xlsx'
             raw_path=local_path.absolute(),
+            source_url=file_meta.web_view_link,
             original_filename=file_meta.name,
             file_size=file_meta.size_bytes or local_path.stat().st_size,
             uploaded_at=datetime.now(timezone.utc),

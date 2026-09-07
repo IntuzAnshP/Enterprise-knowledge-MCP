@@ -33,8 +33,8 @@ retrieval_service = RetrievalService()
 @mcp.tool()
 def search_knowledge(
     query: str,
-    source_type: Optional[str] = None,
-    content_type: Optional[str] = None,
+    source_type: Optional[Literal["local", "google_drive", "notion"]] = None,
+    content_type: Optional[Literal["pdf", "docx", "xlsx", "notion"]] = None,
     document_id: Optional[str] = None,
     document_title: Optional[str] = None,
     limit: int = settings.RETRIEVAL_FINAL_K
@@ -62,7 +62,7 @@ def search_knowledge(
     Args:
         query: A content-rich, semantically meaningful query describing what you expect the text to contain.
         source_type: Optional filter by source type (local, notion, google_drive).
-        content_type: Optional filter by content type (pdf, docx, xlsx).
+        content_type: Optional filter by content type (pdf, docx, xlsx, notion).
         document_id: Optional filter by specific document ID.
         document_title: Optional filter by document name. If you only know the name of the document, use this instead of document_id.
         limit: Maximum number of chunks to return.
@@ -98,7 +98,7 @@ from typing import Optional, Any, Literal
 def list_documents(
     search: Optional[str] = None,
     source_type: Optional[Literal["local", "google_drive", "notion"]] = None,
-    content_type: Optional[Literal["pdf", "docx", "xlsx"]] = None,
+    content_type: Optional[Literal["pdf", "docx", "xlsx", "notion"]] = None,
     sort_by: Literal["created_at", "title"] = "created_at",
     order: Literal["asc", "desc"] = "desc"
 ) -> str:

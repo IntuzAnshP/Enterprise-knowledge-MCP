@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 def create_app() -> FastAPI:
     app = FastAPI(
         title="Enterprise Knowledge MCP Server",
-        description="Phase 3: Retrieval Layer + MCP Server",
+        description="Phase 4: Google Drive + Notion Connector",
         version="1.0.0",
     )
 
@@ -53,6 +53,15 @@ def create_app() -> FastAPI:
     def health_check():
         from app.schemas.api_response import APIResponse
         return APIResponse(status="success", message="Health check successful", data={"status": "ok"})
+
+    @app.get("/")
+    def root():
+        from app.schemas.api_response import APIResponse
+        return APIResponse(
+            status="success", 
+            message="Welcome to Enterprise Knowledge MCP Server. Visit /docs for API documentation.", 
+            data=None
+        )
 
     return app
 
