@@ -6,7 +6,7 @@ import os
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 class Settings(BaseSettings):
-    DATABASE_URL: str
+    DATABASE_URL: str = "postgresql://postgres:postgres@localhost:5432/enterprise_mcp"
     UPLOAD_DIR: Path = BASE_DIR / "uploads"
     MAX_FILE_SIZE_MB: int = 50
     ENABLE_RERANKER: bool = False
@@ -23,6 +23,16 @@ class Settings(BaseSettings):
     GOOGLE_DRIVE_SYNC_INTERVAL_MINUTES: int = 30
     # Local directory where Drive files are downloaded before parsing
     GOOGLE_DRIVE_DOWNLOAD_DIR: Path = BASE_DIR / "downloads" / "google_drive"
+
+    # ── Notion Connector (Phase 5) ──────────────────────────────────────────
+    # Notion API Integration Token (Internal Integration Secret)
+    NOTION_API_KEY: str = ""
+    # Root Notion Page ID or Database ID to sync from
+    NOTION_ROOT_PAGE_ID: str = ""
+    # How often the background scheduler runs a sync (in minutes)
+    NOTION_SYNC_INTERVAL_MINUTES: int = 30
+    # Local directory where Notion JSON files are downloaded before parsing
+    NOTION_DOWNLOAD_DIR: Path = BASE_DIR / "downloads" / "notion"
 
     model_config = SettingsConfigDict(
         env_file=str(BASE_DIR / ".env"), 

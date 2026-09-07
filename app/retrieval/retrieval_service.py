@@ -122,11 +122,6 @@ class RetrievalService:
             
             candidates.append(retrieved)
 
-        # Log top candidate scores before reranking
-        if candidates:
-            top_scores = [f"{c.score:.4f}" for c in candidates[:5]]
-            logger.info(f"[PGVECTOR] Top-5 similarity scores: [{', '.join(top_scores)}]")
-            
         reranked = False
         final_chunks = candidates
         

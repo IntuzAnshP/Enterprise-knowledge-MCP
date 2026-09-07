@@ -2,7 +2,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
-from app.api.v1 import upload, search, google_drive
+from app.api.v1 import upload, search, google_drive, notion
 from app.database import engine, Base
 import logging
 
@@ -19,6 +19,7 @@ def create_app() -> FastAPI:
     app.include_router(upload.router, prefix="/api/v1", tags=["upload"])
     app.include_router(search.router, prefix="/api/v1", tags=["search"])
     app.include_router(google_drive.router, prefix="/api/v1", tags=["google-drive"])
+    app.include_router(notion.router, prefix="/api/v1", tags=["notion"])
 
     @app.on_event("startup")
     async def startup_event():

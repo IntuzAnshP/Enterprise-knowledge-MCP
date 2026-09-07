@@ -63,6 +63,32 @@ class DOCXChunker(AbstractChunker):
                 return last
             return None
 
+        def _apply_overlap():
+            nonlocal current_chunk_content, current_token_count
+            overlap_content = []
+            overlap_tokens = 0
+            for block in reversed(current_chunk_content):
+                tokens_in_block = self._approx_token_count(block)
+                if overlap_tokens + tokens_in_block > self.chunk_overlap:
+                    break
+                overlap_content.insert(0, block)
+                overlap_tokens += tokens_in_block
+            return overlap_content, overlap_tokens
+
+        def _flush_with_overlap(chunk_type):
+            nonlocal current_chunk_content, current_token_count
+            overlap_content, overlap_tokens = _apply_overlap()
+            rescued_heading = _rescue_dangling_heading()
+            
+            finalize_chunk(chunk_type=chunk_type)
+            
+            if overlap_content:
+                current_chunk_content.extend(overlap_content)
+                current_token_count += overlap_tokens
+            if rescued_heading:
+                current_chunk_content.append(rescued_heading)
+                current_token_count += self._approx_token_count(rescued_heading)
+
         for section in doc.structured_sections:
             text = section.content
             if not text:
@@ -86,13 +112,43 @@ class DOCXChunker(AbstractChunker):
                 current_token_count += tokens
                 continue
                 
-            # If the current section itself is huge (e.g. a massive table), we might need to flush first
+            # If the current section itself is huge (e.g. massive paragraph)
+            if tokens > self.chunk_size:
+                # Flush existing buffer first
+                if current_token_count > 0:
+                    _flush_with_overlap(chunk_type=section.section_type)
+                        
+                # Split this massive text using character-based sliding window
+                char_size = self.chunk_size * 4
+                char_overlap = self.chunk_overlap * 4
+                start = 0
+                while start < len(text):
+                    end = start + char_size
+                    chunk_piece = text[start:end]
+                    
+                    metadata = ChunkMetadata(
+                        document_id=doc.source_id,
+                        chunk_index=chunk_index,
+                        chunk_type=section.section_type,
+                        source_type=doc.source_type,
+                        source_url=doc.source_url,
+                        title=doc.title,
+                        section_context=current_section_context
+                    )
+                    
+                    chunks.append(DocumentChunkSchema(
+                        content=chunk_piece.strip(),
+                        metadata=metadata
+                    ))
+                    
+                    chunk_index += 1
+                    start += (char_size - char_overlap)
+                    
+                continue
+                
+            # Standard multi-section grouping limit
             if current_token_count > 0 and current_token_count + tokens > self.chunk_size:
-                rescued_heading = _rescue_dangling_heading()
-                finalize_chunk(chunk_type=section.section_type)
-                if rescued_heading:
-                    current_chunk_content.append(rescued_heading)
-                    current_token_count += self._approx_token_count(rescued_heading)
+                _flush_with_overlap(chunk_type=section.section_type)
                 
             current_chunk_content.append(text)
             current_token_count += tokens
@@ -100,11 +156,7 @@ class DOCXChunker(AbstractChunker):
             
             # Flush if we exceed the chunk size
             if current_token_count >= self.chunk_size:
-                rescued_heading = _rescue_dangling_heading()
-                finalize_chunk(chunk_type=section.section_type)
-                if rescued_heading:
-                    current_chunk_content.append(rescued_heading)
-                    current_token_count += self._approx_token_count(rescued_heading)
+                _flush_with_overlap(chunk_type=section.section_type)
                 
         # Flush remaining
         finalize_chunk()

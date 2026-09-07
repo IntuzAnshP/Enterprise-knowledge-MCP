@@ -15,14 +15,18 @@ class NormalizationService:
         # Compute hash
         content_hash = hashlib.sha256(full_text.encode('utf-8')).hexdigest()
         
-        title = ""
+        # We prioritize the original filename (e.g., the Google Drive name or uploaded filename)
+        # because internal document metadata titles (e.g. embedded PDF titles) are often inaccurate or outdated.
+        title = extracted.source_item.original_filename
+        
         source_updated_at = None
         final_metadata = {}
         structured_sections = []
         
         # 1. Handle New Structured Metadata (e.g. DOCXParser)
         if extracted.metadata is not None:
-            title = extracted.metadata.title
+            if not title:
+                title = extracted.metadata.title
             
             if extracted.metadata.modified_at:
                 try:
@@ -47,7 +51,8 @@ class NormalizationService:
                 
         # 2. Handle Old Legacy Metadata (e.g. PDFParser, XLSXParser)
         else:
-            title = extracted.parser_metadata.get("title")
+            if not title:
+                title = extracted.parser_metadata.get("title")
             
             if "modified" in extracted.parser_metadata and extracted.parser_metadata["modified"]:
                 try:
@@ -61,7 +66,7 @@ class NormalizationService:
             
         # Fallbacks
         if not title:
-            title = extracted.source_item.original_filename
+            title = "Untitled Document"
             
         if not source_updated_at:
             try:

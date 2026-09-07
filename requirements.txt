@@ -4,8 +4,8 @@ sqlalchemy==2.0.30
 alembic==1.13.1
 psycopg2-binary==2.9.9
 pgvector==0.2.5
-pydantic==2.7.3
-pydantic-settings==2.3.1
+pydantic>=2.12.0
+pydantic-settings>=2.3.1
 python-multipart==0.0.9
 pymupdf==1.24.5
 python-docx==1.1.2
@@ -14,8 +14,9 @@ python-magic==0.4.27
 python-dotenv==1.0.1
 sentence-transformers==3.0.1
 torch>=2.0.0
-mcp[cli]>=1.0.0
+mcp>=2.1.1
 # Google Drive Connector (Phase 4)
 google-api-python-client>=2.130.0
 google-auth>=2.29.0
 google-auth-httplib2>=0.2.0
+notion-client==3.1.0

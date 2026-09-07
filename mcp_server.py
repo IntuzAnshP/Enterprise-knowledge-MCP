@@ -1,10 +1,16 @@
 import asyncio
 import json
 import logging
+import sys
 from typing import Optional, Any
 from pathlib import Path
 
+# Base directory for the MCP Server
+BASE_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(BASE_DIR))
+
 from mcp.server.mcpserver import MCPServer
+
 
 from app.database import SessionLocal
 from app.retrieval.retrieval_service import RetrievalService
@@ -13,12 +19,9 @@ from app.models.document import Document
 from app.models.document_chunk import DocumentChunk
 from app.config import settings
 
-# Base directory for the MCP Server
-BASE_DIR = Path(__file__).resolve().parent
-
-# Configure logging to go to a file in the project directory, since stdout/stderr are used by MCP stdio
+# Configure logging to go to stderr so it doesn't interfere with MCP stdio
 logging.basicConfig(
-    filename=str(BASE_DIR / 'mcp_server.log'),
+    stream=sys.stderr,
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
@@ -33,21 +36,48 @@ def search_knowledge(
     source_type: Optional[str] = None,
     content_type: Optional[str] = None,
     document_id: Optional[str] = None,
+    document_title: Optional[str] = None,
     limit: int = settings.RETRIEVAL_FINAL_K
 ) -> str:
     """
     Search the enterprise knowledge base for information using semantic search.
-    
+
+    CRITICAL - QUERY FORMULATION RULES:
+    - NEVER pass vague or structural phrases as the query (e.g., "introduction section", "chapter 2", "summary").
+      These have no semantic meaning and will produce poor results.
+    - ALWAYS reformulate the query to describe the CONTENT you expect to find in the matching chunks.
+      Think: "What words and concepts would appear in the text I am looking for?"
+    - Expand the query with domain-specific vocabulary, key concepts, and relevant terminology.
+
+    GOOD query examples:
+    - User asks "give me the introduction": query="recurrent neural networks LSTM sequence modeling attention mechanism encoder decoder"
+    - User asks "what is the conclusion": query="results state of the art performance improvements future work"
+    - User asks "explain the methodology": query="experimental setup dataset training procedure evaluation metrics"
+
+    BAD query examples (DO NOT USE):
+    - "introduction section" — too vague, no content signal
+    - "chapter 3" — structural label, not semantic content
+    - "give me the summary" — describes user intent, not document content
+
     Args:
-        query: The natural language query to search for.
+        query: A content-rich, semantically meaningful query describing what you expect the text to contain.
         source_type: Optional filter by source type (local, notion, google_drive).
         content_type: Optional filter by content type (pdf, docx, xlsx).
         document_id: Optional filter by specific document ID.
+        document_title: Optional filter by document name. If you only know the name of the document, use this instead of document_id.
         limit: Maximum number of chunks to return.
     """
-    logger.info(f"Tool called: search_knowledge with query: {query}")
+    logger.info(f"Tool called: search_knowledge with query: {query}, document_title: {document_title}")
     db = SessionLocal()
     try:
+        if document_title and not document_id:
+            docs = db.query(Document).filter(Document.title.ilike(f"%{document_title}%")).all()
+            if docs:
+                document_id = str(docs[0].id)
+                logger.info(f"Resolved document_title '{document_title}' to ID '{document_id}'")
+            else:
+                return f"Error: No document found matching title '{document_title}'. Try using list_documents to find the correct name."
+                
         filters = MetadataFilter(
             source_type=source_type,
             content_type=content_type,
@@ -128,6 +158,7 @@ def list_documents(
 def get_document(document_id: str) -> str:
     """
     Get metadata for a specific document by ID.
+    WARNING: If you only have the document name, you must first use list_documents with the 'search' argument to find its ID. Do not guess the ID.
     """
     logger.info(f"Tool called: get_document for {document_id}")
     db = SessionLocal()
@@ -157,6 +188,7 @@ def get_document(document_id: str) -> str:
 def get_document_chunk(chunk_id: str, document_id: str) -> str:
     """
     Get a specific document chunk by ID.
+    WARNING: If you only have the document name, you must first use list_documents with the 'search' argument to find its ID.
     """
     logger.info(f"Tool called: get_document_chunk for {chunk_id}")
     db = SessionLocal()
@@ -182,9 +214,85 @@ def get_document_chunk(chunk_id: str, document_id: str) -> str:
         return f"Error: {str(e)}"
     finally:
         db.close()
+import threading
+import time
+
+def auto_sync_loop():
+    if not settings.GOOGLE_DRIVE_CREDENTIALS_JSON or not settings.GOOGLE_DRIVE_FOLDER_ID:
+        logger.info("Google Drive credentials/folder not configured. Auto-sync disabled.")
+        return
+        
+    interval_seconds = settings.GOOGLE_DRIVE_SYNC_INTERVAL_MINUTES * 60
+    logger.info(f"Google Drive auto-sync scheduled every {settings.GOOGLE_DRIVE_SYNC_INTERVAL_MINUTES} minutes.")
+    
+    time.sleep(10)
+    
+    while True:
+        try:
+            logger.info("Starting scheduled Google Drive sync...")
+            db = SessionLocal()
+            try:
+                from app.api.v1.google_drive import _get_connector
+                from app.connectors.google_drive.sync_service import GoogleDriveSyncService
+                from app.ingestion.pipeline import IngestionPipeline
+                
+                connector = _get_connector()
+                sync_service = GoogleDriveSyncService(
+                    connector=connector,
+                    pipeline=IngestionPipeline()
+                )
+                result = sync_service.run_sync(db)
+                logger.info(f"Scheduled sync complete: {result.new} new, {result.updated} updated, {result.deleted} deleted.")
+            finally:
+                db.close()
+                
+            time.sleep(interval_seconds)
+        except Exception as e:
+            logger.error(f"Error in Google Drive auto-sync: {e}", exc_info=True)
+            time.sleep(60)
+
+def notion_auto_sync_loop():
+    if not settings.NOTION_API_KEY or not settings.NOTION_ROOT_PAGE_ID:
+        logger.info("Notion credentials/root page not configured. Auto-sync disabled.")
+        return
+        
+    interval_seconds = settings.NOTION_SYNC_INTERVAL_MINUTES * 60
+    logger.info(f"Notion auto-sync scheduled every {settings.NOTION_SYNC_INTERVAL_MINUTES} minutes.")
+    
+    time.sleep(15)
+    
+    while True:
+        try:
+            logger.info("Starting scheduled Notion sync...")
+            db = SessionLocal()
+            try:
+                from app.api.v1.notion import _get_connector as get_notion_connector
+                from app.connectors.notion.sync_service import NotionSyncService
+                from app.ingestion.pipeline import IngestionPipeline
+                
+                connector = get_notion_connector()
+                sync_service = NotionSyncService(
+                    connector=connector,
+                    pipeline=IngestionPipeline()
+                )
+                result = sync_service.run_sync(db)
+                logger.info(f"Scheduled Notion sync complete: {result.new} new, {result.updated} updated, {result.deleted} deleted.")
+            finally:
+                db.close()
+                
+            time.sleep(interval_seconds)
+        except Exception as e:
+            logger.error(f"Error in Notion auto-sync: {e}", exc_info=True)
+            time.sleep(60)
 
 def main():
     logger.info("Starting Enterprise Knowledge MCP Server (v2 stdio)")
+    gd_sync_thread = threading.Thread(target=auto_sync_loop, daemon=True)
+    gd_sync_thread.start()
+    
+    notion_sync_thread = threading.Thread(target=notion_auto_sync_loop, daemon=True)
+    notion_sync_thread.start()
+    
     mcp.run()
 
 if __name__ == "__main__":

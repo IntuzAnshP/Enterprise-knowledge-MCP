@@ -3,6 +3,7 @@ from app.chunking.base import AbstractChunker
 from app.chunking.docx_chunker import DOCXChunker
 from app.chunking.pdf_chunker import PDFChunker
 from app.chunking.xlsx_chunker import XLSXChunker
+from app.chunking.notion_chunker import NotionChunker
 
 class UnsupportedContentTypeError(Exception):
     pass
@@ -12,7 +13,8 @@ class ChunkingRouter:
         self.chunkers = {
             "docx": DOCXChunker(),
             "pdf": PDFChunker(),
-            "xlsx": XLSXChunker()
+            "xlsx": XLSXChunker(),
+            "notion": NotionChunker()
         }
 
     def route(self, doc: NormalizedDocument) -> AbstractChunker:

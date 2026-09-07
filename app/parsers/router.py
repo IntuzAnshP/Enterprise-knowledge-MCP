@@ -5,6 +5,7 @@ from app.parsers.base import BaseParser
 from app.parsers.pdf_parser import PDFParser
 from app.parsers.docx_parser import DOCXParser
 from app.parsers.xlsx_parser import XLSXParser
+from app.parsers.notion_parser import NotionParser
 
 class UnsupportedContentTypeError(Exception):
     pass
@@ -14,7 +15,8 @@ class ParserRouter:
         self.parsers = [
             PDFParser(),
             DOCXParser(),
-            XLSXParser()
+            XLSXParser(),
+            NotionParser()
         ]
         
     def detect_content_type(self, file_path: str) -> str:
@@ -27,6 +29,10 @@ class ParserRouter:
             return "docx"
         elif mime_type == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":
             return "xlsx"
+        elif file_path.endswith(".json"):
+            # Temporary heuristic for Notion parser since we save it as json.
+            # In a real app we might inspect the json content.
+            return "notion"
         
         return "unknown"
 

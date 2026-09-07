@@ -14,6 +14,9 @@ class ChangeDetectionService:
         if not existing:
             return ChangeResult.NEW
             
+        if existing.indexing_status and existing.indexing_status.value == "failed":
+            return ChangeResult.UPDATED
+            
         if existing.content_hash == new_hash:
             return ChangeResult.UNCHANGED
             
