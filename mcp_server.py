@@ -85,7 +85,55 @@ def search_knowledge(
         )
         
         result = retrieval_service.search(query=query, filters=filters, limit=limit, db=db)
-        return result.model_dump_json()
+        
+        # Build a text response that forces Claude to cite sources using XML tags and numbered blocks
+        sources_seen = {}
+        formatted_chunks = []
+        
+        for chunk in result.chunks:
+            cit = chunk.citation
+            
+            # Collect unique sources for the reference list
+            if cit.document_id not in sources_seen:
+                sources_seen[cit.document_id] = {
+                    "index": len(sources_seen) + 1,
+                    "title": cit.document_title,
+                    "url": getattr(cit, "source_url", None)
+                }
+            src_index = sources_seen[cit.document_id]["index"]
+            
+            # Format individual chunk
+            meta_parts = []
+            if cit.page_number:
+                meta_parts.append(f"page {cit.page_number}")
+            if getattr(cit, "sheet_name", None):
+                meta_parts.append(f"sheet: {cit.sheet_name}")
+                
+            meta_str = f" ({', '.join(meta_parts)})" if meta_parts else ""
+            formatted_chunks.append(f"[SOURCE {src_index}] {cit.document_title}{meta_str}\n---\n{chunk.content}\n")
+            
+        chunks_text = "\n".join(formatted_chunks)
+        
+        # Build the source reference list
+        sources_list = []
+        for src in sources_seen.values():
+            url_str = f"({src['url']})" if src['url'] and not str(src['url']).startswith("/") else ""
+            sources_list.append(f"[{src['index']}] {src['title']} {url_str}".strip())
+            
+        sources_text = "\n".join(sources_list)
+        
+        return f"""<retrieved_chunks>
+{chunks_text}
+</retrieved_chunks>
+
+<citation_instruction>
+You MUST include inline citations like [1], [2], etc. for EVERY claim you make using the retrieved chunks above.
+When you use information from a chunk labeled [SOURCE N], you must add [N] at the end of the relevant sentence.
+End your response with the following Sources section:
+
+### Sources
+{sources_text}
+</citation_instruction>"""
     except Exception as e:
         logger.error(f"Error in search_knowledge: {e}", exc_info=True)
         return f"Error: {str(e)}"
