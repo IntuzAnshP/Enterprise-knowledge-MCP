@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "postgresql://postgres:postgres@localhost:5432/enterprise_mcp"
     UPLOAD_DIR: Path = BASE_DIR / "uploads"
     MAX_FILE_SIZE_MB: int = 50
-    ENABLE_RERANKER: bool = False
+    ENABLE_RERANKER: bool = True
     RERANKER_MODEL: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
     RETRIEVAL_TOP_K: int = 20
     RETRIEVAL_FINAL_K: int = 5
