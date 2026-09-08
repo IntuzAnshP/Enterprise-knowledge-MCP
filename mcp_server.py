@@ -2,7 +2,7 @@ import asyncio
 import json
 import logging
 import sys
-from typing import Optional, Any
+from typing import Optional, Any, Literal
 from pathlib import Path
 
 # Base directory for the MCP Server
