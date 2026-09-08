@@ -94,7 +94,7 @@ cp .env.example .env
 | `DATABASE_URL` | PostgreSQL connection string | `postgresql://postgres:postgres@localhost:5432/enterprise_mcp` | Yes |
 | `UPLOAD_DIR` | Directory for local file uploads | `./uploads` | No |
 | `MAX_FILE_SIZE_MB` | Maximum file size for uploads | `50` | No |
-| `ENABLE_RERANKER` | Enable Cross-Encoder reranking | `false` | No |
+| `ENABLE_RERANKER` | Enable Cross-Encoder reranking | `true` | No |
 | `RERANKER_MODEL` | HuggingFace model for reranking | `cross-encoder/ms-marco-MiniLM-L-6-v2` | No |
 | `RETRIEVAL_TOP_K` | Initial chunks retrieved from pgvector | `20` | No |
 | `RETRIEVAL_FINAL_K` | Final chunks returned after reranking | `5` | No |
